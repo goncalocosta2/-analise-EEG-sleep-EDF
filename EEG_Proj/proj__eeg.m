@@ -61,25 +61,24 @@ for i = 1:height(anotacoes)
 end
 
 %% 3. Filtro Passa-Banda (0.5 Hz - 45 Hz) 
-
 % Passar o formato para double
 if iscell(eeg_sinal)
     eeg_sinal = cell2mat(eeg_sinal);
 end
 eeg_sinal = double(eeg_sinal);  
 
-% Parâmetros do filtro
-ordem = 100;  % Reduz a ordem para verificar estabilidade
-frequencias_norm = [0 0.5 45 50]/(fs/2);  % Normalização pela frequencia de Nyquist
-desejado = [0 0 1 0];  % Resposta desejada do filtro (passa-banda)
+% Filtro passa-banda entre 0.5 Hz e 45 Hz com fir1
 
-% Criar o filtro com firpm
-filtro = firpm(ordem, frequencias_norm, desejado);
+ordem = 500;  % Ordem do filtro (quanto maior, mais seletivo)
+frequencia_corte = [0.5 45] / (fs/2);  % Normalizar pela frequência de Nyquist
+
+% Criar filtro FIR passa-banda com janela Hamming
+filtro = fir1(ordem, frequencia_corte, 'bandpass', hamming(ordem + 1));
 
 %% 4. Filtragem do sinal EEG
 
 % Aplicar o filtro com convolução 
-eeg_sinal_filtrado = conv(eeg_sinal, filtro);  
+eeg_sinal_filtrado = filtfilt(filtro, 1, eeg_sinal); 
 
 % Plotar o sinal original e o sinal filtrado
 figure;
@@ -128,7 +127,9 @@ for j = 1:num_janelas
     
     % Calcular a FFT e a potência espectral
     fft_sinal = fft(janela, n_fft);
-    P_sinal = abs(fft_sinal(1:n_fft/2)).^2 / n_fft;  % Potência espectral
+    N = length(janela);
+    P_sinal = (1/(fs*N)) * abs(fft_sinal(1:n_fft/2)).^2;
+    P_sinal(2:end-1) = 2*P_sinal(2:end-1); % corrigir parte positiva
     
     % Armazenar a potência da janela na matriz P_eeg
     P_eeg(j, :) = P_sinal;
@@ -190,7 +191,8 @@ for idx_e = 1:length(estagios_unicos)
     for idx_b = 1:size(bandas_freq, 1)
         faixa = bandas_freq{idx_b, 2};
         indices_banda = freqs >= faixa(1) & freqs <= faixa(2);
-        pot_banda = sum(media_psd(indices_banda));
+        df = fs/n_fft;
+        pot_banda = sum(media_psd(indices_banda)) * df;
         pot_por_banda(idx_e, idx_b) = pot_banda;
     end
 end
